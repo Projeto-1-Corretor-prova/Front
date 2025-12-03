@@ -1,58 +1,100 @@
+import { useState } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { Authenticated, Unauthenticated, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
-import { SignInForm } from "./SignInForm";
-import { SignOutButton } from "./SignOutButton";
 import { Toaster } from "sonner";
-import { Dashboard } from "./components/Dashboard";
+import { MainLayout } from "./components/layout/MainLayout";
+import { HomePage } from "./components/pages/HomePage";
+import { ClassesPage } from "./components/pages/ClassesPage";
+import { ExamsPage } from "./components/pages/ExamsPage";
+import { CorrectionsPage } from "./components/pages/CorrectionsPage";
+import { ReportsPage } from "./components/pages/ReportsPage";
+import { SettingsPage } from "./components/pages/SettingsPage";
+import { LandingPage } from "./components/pages/LandingPage";
+import { LoginPage } from "./components/pages/LoginPage";
 import { ProfileSetup } from "./components/ProfileSetup";
+
+type Route = "inicio" | "turmas" | "provas" | "correcoes" | "relatorios" | "configuracoes";
 
 export default function App() {
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm h-16 flex justify-between items-center border-b shadow-sm px-4">
-        <h2 className="text-xl font-semibold text-blue-600">Sistema de Correção de Provas</h2>
-        <Authenticated>
-          <SignOutButton />
-        </Authenticated>
-      </header>
-      <main className="flex-1 p-4">
-        <Content />
-      </main>
+    <div className="min-h-screen">
+      <Routes>
+        <Route path="/login" element={<LoginRoute />} />
+        <Route path="/*" element={<MainRoutes />} />
+      </Routes>
       <Toaster />
     </div>
   );
 }
 
-function Content() {
+function LoginRoute() {
+  return <LoginPage />;
+}
+
+function MainRoutes() {
+  return (
+    <>
+      <Authenticated>
+        <AppContent />
+      </Authenticated>
+      <Unauthenticated>
+        <UnauthenticatedView />
+      </Unauthenticated>
+    </>
+  );
+}
+
+function AppContent() {
+  const navigate = useNavigate();
+  const [activeRoute, setActiveRoute] = useState<Route>("inicio");
   const loggedInUser = useQuery(api.auth.loggedInUser);
   const professorProfile = useQuery(api.professors.getCurrentProfile);
 
   if (loggedInUser === undefined || professorProfile === undefined) {
     return (
-      <div className="flex justify-center items-center min-h-96">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue"></div>
       </div>
     );
   }
 
+  if (!professorProfile) {
+    return <ProfileSetup />;
+  }
+
+  const user = {
+    name: professorProfile.name || "Professor",
+    email: loggedInUser.email || "professor@escola.com",
+  };
+
+  const renderPage = () => {
+    switch (activeRoute) {
+      case "inicio":
+        return <HomePage />;
+      case "turmas":
+        return <ClassesPage />;
+      case "provas":
+        return <ExamsPage />;
+      case "correcoes":
+        return <CorrectionsPage />;
+      case "relatorios":
+        return <ReportsPage />;
+      case "configuracoes":
+        return <SettingsPage />;
+      default:
+        return <HomePage />;
+    }
+  };
+
   return (
-    <div className="max-w-7xl mx-auto">
-      <Authenticated>
-        {professorProfile ? <Dashboard /> : <ProfileSetup />}
-      </Authenticated>
-      <Unauthenticated>
-        <div className="max-w-md mx-auto mt-20">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">
-              Sistema de Correção de Provas com IA
-            </h1>
-            <p className="text-gray-600">
-              Faça login para gerenciar suas turmas, provas e correções automáticas
-            </p>
-          </div>
-          <SignInForm />
-        </div>
-      </Unauthenticated>
-    </div>
+    <MainLayout activeRoute={activeRoute} onNavigate={setActiveRoute} user={user}>
+      {renderPage()}
+    </MainLayout>
   );
+}
+
+function UnauthenticatedView() {
+  const navigate = useNavigate();
+  return <LandingPage onShowLogin={() => navigate("/login")} />;
 }
