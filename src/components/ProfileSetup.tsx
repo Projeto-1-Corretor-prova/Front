@@ -34,13 +34,19 @@ export function ProfileSetup() {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-20">
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-          Complete seu Perfil
-        </h2>
+    <div className="min-h-screen bg-blue flex items-center justify-center p-4">
+      <div className="max-w-md w-full">
+        <div className="bg-white rounded-xl shadow-xl p-8">
+          <div className="text-center mb-6">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              Complete seu Perfil
+            </h2>
+            <p className="text-gray-600">
+              Preencha suas informações para começar a usar o sistema
+            </p>
+          </div>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
               Nome Completo *
@@ -84,14 +90,15 @@ export function ProfileSetup() {
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isLoading ? "Criando..." : "Criar Perfil"}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-lg"
+            >
+              {isLoading ? "Criando perfil..." : "Criar Perfil"}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

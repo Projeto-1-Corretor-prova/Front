@@ -42,7 +42,13 @@ export const createSubmission = mutation({
 
     // Verificar se a prova pertence ao professor
     const exam = await ctx.db.get(args.examId);
-    if (!exam || exam.professorId !== professorId) {
+    if (!exam) {
+      throw new Error("Prova não encontrada");
+    }
+
+    // Verificar se a turma pertence ao professor
+    const classData = await ctx.db.get(exam.classId);
+    if (!classData || classData.professorId !== professorId) {
       throw new Error("Prova não encontrada");
     }
 
@@ -87,16 +93,21 @@ export const processSubmission = action({
       }
 
       // Simular respostas do CSV (em implementação real, você parsearia o arquivo)
-      const mockAnswers = [
-        { questionNumber: 1, answerText: "Esta é uma resposta simulada para a questão 1" },
-        { questionNumber: 2, answerText: "Esta é uma resposta simulada para a questão 2" },
-      ];
+      // Buscar questões da prova através da relação many-to-many
+      const examQuestions = await ctx.runQuery(internal.submissions.getExamQuestionsInternal, {
+        examId: submission.examId,
+      });
+
+      const mockAnswers = examQuestions.slice(0, 2).map((eq, index) => ({
+        questionId: eq.questionId,
+        answerText: `Esta é uma resposta simulada para a questão ${index + 1}`,
+      }));
 
       // Processar cada resposta
       for (const answer of mockAnswers) {
         await ctx.runMutation(internal.submissions.createStudentAnswer, {
           submissionId: args.submissionId,
-          questionNumber: answer.questionNumber,
+          questionId: answer.questionId,
           answerText: answer.answerText,
         });
       }
@@ -147,10 +158,20 @@ export const getExamInternal = internalQuery({
   },
 });
 
+export const getExamQuestionsInternal = internalQuery({
+  args: { examId: v.id("exams") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("examQuestions")
+      .withIndex("by_exam", (q) => q.eq("examId", args.examId))
+      .collect();
+  },
+});
+
 export const createStudentAnswer = internalMutation({
   args: {
     submissionId: v.id("studentSubmissions"),
-    questionNumber: v.number(),
+    questionId: v.id("questions"),
     answerText: v.string(),
   },
   handler: async (ctx, args) => {
@@ -159,20 +180,15 @@ export const createStudentAnswer = internalMutation({
       throw new Error("Submissão não encontrada");
     }
 
-    // Encontrar a questão pelo número
-    const questions = await ctx.db
-      .query("questions")
-      .withIndex("by_exam", (q: any) => q.eq("examId", submission.examId))
-      .collect();
-
-    const question = questions.find(q => q.questionNumber === args.questionNumber);
+    // Verificar se a questão existe
+    const question = await ctx.db.get(args.questionId);
     if (!question) {
-      throw new Error(`Questão ${args.questionNumber} não encontrada`);
+      throw new Error("Questão não encontrada");
     }
 
     return await ctx.db.insert("studentAnswers", {
       submissionId: args.submissionId,
-      questionId: question._id,
+      questionId: args.questionId,
       answerText: args.answerText,
       finalScore: 0, // Será atualizado pela IA
     });
@@ -223,14 +239,22 @@ export const getAnswersForCorrection = internalQuery({
       answers.map(async (answer) => {
         const question = await ctx.db.get(answer.questionId);
         const criteria = await ctx.db
-          .query("evaluationCriteria")
+          .query("questionCriteria")
           .withIndex("by_question", (q: any) => q.eq("questionId", answer.questionId))
           .collect();
 
+        // Converter critérios para o formato esperado pela função de avaliação
+        const formattedCriteria = criteria.map((c) => ({
+          criteriaText: c.regra,
+          points: 1, // Valor padrão, pode ser ajustado
+          isKeyword: c.tipo === "PALAVRA CHAVE",
+          weight: 1, // Valor padrão, pode ser ajustado
+        }));
+
         return {
           ...answer,
-          criteria,
-          maxPoints: question?.points || 0,
+          criteria: formattedCriteria,
+          maxPoints: question?.peso || 0,
         };
       })
     );
@@ -314,7 +338,13 @@ export const listSubmissions = query({
 
     // Verificar se a prova pertence ao professor
     const exam = await ctx.db.get(args.examId);
-    if (!exam || exam.professorId !== professorId) {
+    if (!exam) {
+      throw new Error("Prova não encontrada");
+    }
+
+    // Verificar se a turma pertence ao professor
+    const classData = await ctx.db.get(exam.classId);
+    if (!classData || classData.professorId !== professorId) {
       throw new Error("Prova não encontrada");
     }
 
@@ -338,7 +368,13 @@ export const getSubmissionDetails = query({
 
     // Verificar se a prova pertence ao professor
     const exam = await ctx.db.get(submission.examId);
-    if (!exam || exam.professorId !== professorId) {
+    if (!exam) {
+      throw new Error("Prova não encontrada");
+    }
+
+    // Verificar se a turma pertence ao professor
+    const classData = await ctx.db.get(exam.classId);
+    if (!classData || classData.professorId !== professorId) {
       throw new Error("Prova não encontrada");
     }
 

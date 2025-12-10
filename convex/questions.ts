@@ -23,47 +23,81 @@ async function getProfessorId(ctx: any) {
 // Criar questão
 export const createQuestion = mutation({
   args: {
-    examId: v.id("exams"),
-    questionNumber: v.number(),
-    questionText: v.string(),
-    points: v.number(),
-    expectedAnswer: v.optional(v.string()),
+    questionBankId: v.id("questionBanks"),
+    identificador: v.string(),
+    enunciado: v.string(),
+    peso: v.number(),
+    linhas: v.number(),
   },
   handler: async (ctx, args) => {
     const professorId = await getProfessorId(ctx);
 
-    // Verificar se a prova pertence ao professor
-    const exam = await ctx.db.get(args.examId);
-    if (!exam || exam.professorId !== professorId) {
-      throw new Error("Prova não encontrada");
+    // Verificar se o banco de questões pertence ao professor
+    const questionBank = await ctx.db.get(args.questionBankId);
+    if (!questionBank || questionBank.professorId !== professorId) {
+      throw new Error("Banco de questões não encontrado");
     }
 
     return await ctx.db.insert("questions", {
-      examId: args.examId,
-      questionNumber: args.questionNumber,
-      questionText: args.questionText,
-      points: args.points,
-      expectedAnswer: args.expectedAnswer,
+      questionBankId: args.questionBankId,
+      identificador: args.identificador,
+      enunciado: args.enunciado,
+      peso: args.peso,
+      linhas: args.linhas,
     });
   },
 });
 
-// Listar questões de uma prova
+// Listar questões de um banco de questões
 export const listQuestions = query({
-  args: { examId: v.id("exams") },
+  args: { questionBankId: v.id("questionBanks") },
   handler: async (ctx, args) => {
     const professorId = await getProfessorId(ctx);
 
-    // Verificar se a prova pertence ao professor
-    const exam = await ctx.db.get(args.examId);
-    if (!exam || exam.professorId !== professorId) {
-      throw new Error("Prova não encontrada");
+    // Verificar se o banco de questões pertence ao professor
+    const questionBank = await ctx.db.get(args.questionBankId);
+    if (!questionBank || questionBank.professorId !== professorId) {
+      throw new Error("Banco de questões não encontrado");
     }
 
     return await ctx.db
       .query("questions")
+      .withIndex("by_question_bank", (q) => q.eq("questionBankId", args.questionBankId))
+      .collect();
+  },
+});
+
+// Listar questões de uma prova (através da relação many-to-many)
+export const listQuestionsByExam = query({
+  args: { examId: v.id("exams") },
+  handler: async (ctx, args) => {
+    const professorId = await getProfessorId(ctx);
+    const exam = await ctx.db.get(args.examId);
+
+    if (!exam) {
+      throw new Error("Prova não encontrada");
+    }
+
+    // Verificar se a turma pertence ao professor
+    const classData = await ctx.db.get(exam.classId);
+    if (!classData || classData.professorId !== professorId) {
+      throw new Error("Prova não encontrada");
+    }
+
+    // Buscar questões através da relação many-to-many
+    const examQuestions = await ctx.db
+      .query("examQuestions")
       .withIndex("by_exam", (q) => q.eq("examId", args.examId))
       .collect();
+
+    const questions = await Promise.all(
+      examQuestions.map(async (eq) => {
+        const question = await ctx.db.get(eq.questionId);
+        return question;
+      })
+    );
+
+    return questions.filter((q) => q !== null);
   },
 });
 
@@ -71,10 +105,10 @@ export const listQuestions = query({
 export const updateQuestion = mutation({
   args: {
     questionId: v.id("questions"),
-    questionNumber: v.number(),
-    questionText: v.string(),
-    points: v.number(),
-    expectedAnswer: v.optional(v.string()),
+    identificador: v.string(),
+    enunciado: v.string(),
+    peso: v.number(),
+    linhas: v.number(),
   },
   handler: async (ctx, args) => {
     const professorId = await getProfessorId(ctx);
@@ -84,17 +118,17 @@ export const updateQuestion = mutation({
       throw new Error("Questão não encontrada");
     }
 
-    // Verificar se a prova pertence ao professor
-    const exam = await ctx.db.get(question.examId);
-    if (!exam || exam.professorId !== professorId) {
-      throw new Error("Prova não encontrada");
+    // Verificar se o banco de questões pertence ao professor
+    const questionBank = await ctx.db.get(question.questionBankId);
+    if (!questionBank || questionBank.professorId !== professorId) {
+      throw new Error("Questão não encontrada");
     }
 
     await ctx.db.patch(args.questionId, {
-      questionNumber: args.questionNumber,
-      questionText: args.questionText,
-      points: args.points,
-      expectedAnswer: args.expectedAnswer,
+      identificador: args.identificador,
+      enunciado: args.enunciado,
+      peso: args.peso,
+      linhas: args.linhas,
     });
   },
 });
@@ -110,15 +144,15 @@ export const deleteQuestion = mutation({
       throw new Error("Questão não encontrada");
     }
 
-    // Verificar se a prova pertence ao professor
-    const exam = await ctx.db.get(question.examId);
-    if (!exam || exam.professorId !== professorId) {
-      throw new Error("Prova não encontrada");
+    // Verificar se o banco de questões pertence ao professor
+    const questionBank = await ctx.db.get(question.questionBankId);
+    if (!questionBank || questionBank.professorId !== professorId) {
+      throw new Error("Questão não encontrada");
     }
 
     // Deletar critérios associados
     const criteria = await ctx.db
-      .query("evaluationCriteria")
+      .query("questionCriteria")
       .withIndex("by_question", (q) => q.eq("questionId", args.questionId))
       .collect();
 
@@ -126,18 +160,105 @@ export const deleteQuestion = mutation({
       await ctx.db.delete(criterion._id);
     }
 
+    // Deletar relações many-to-many com provas
+    const examQuestions = await ctx.db
+      .query("examQuestions")
+      .withIndex("by_question", (q) => q.eq("questionId", args.questionId))
+      .collect();
+
+    for (const examQuestion of examQuestions) {
+      await ctx.db.delete(examQuestion._id);
+    }
+
     await ctx.db.delete(args.questionId);
   },
 });
 
-// Criar critério de avaliação
+// Adicionar questão a uma prova (criar relação many-to-many)
+export const addQuestionToExam = mutation({
+  args: {
+    examId: v.id("exams"),
+    questionId: v.id("questions"),
+  },
+  handler: async (ctx, args) => {
+    const professorId = await getProfessorId(ctx);
+    const exam = await ctx.db.get(args.examId);
+    const question = await ctx.db.get(args.questionId);
+
+    if (!exam || !question) {
+      throw new Error("Prova ou questão não encontrada");
+    }
+
+    // Verificar se a turma pertence ao professor
+    const classData = await ctx.db.get(exam.classId);
+    if (!classData || classData.professorId !== professorId) {
+      throw new Error("Prova não encontrada");
+    }
+
+    // Verificar se o banco de questões pertence ao professor
+    const questionBank = await ctx.db.get(question.questionBankId);
+    if (!questionBank || questionBank.professorId !== professorId) {
+      throw new Error("Questão não encontrada");
+    }
+
+    // Verificar se a relação já existe
+    const existing = await ctx.db
+      .query("examQuestions")
+      .withIndex("by_exam", (q) => q.eq("examId", args.examId))
+      .filter((q) => q.eq(q.field("questionId"), args.questionId))
+      .first();
+
+    if (existing) {
+      throw new Error("Questão já está associada a esta prova");
+    }
+
+    return await ctx.db.insert("examQuestions", {
+      examId: args.examId,
+      questionId: args.questionId,
+    });
+  },
+});
+
+// Remover questão de uma prova
+export const removeQuestionFromExam = mutation({
+  args: {
+    examId: v.id("exams"),
+    questionId: v.id("questions"),
+  },
+  handler: async (ctx, args) => {
+    const professorId = await getProfessorId(ctx);
+    const exam = await ctx.db.get(args.examId);
+
+    if (!exam) {
+      throw new Error("Prova não encontrada");
+    }
+
+    // Verificar se a turma pertence ao professor
+    const classData = await ctx.db.get(exam.classId);
+    if (!classData || classData.professorId !== professorId) {
+      throw new Error("Prova não encontrada");
+    }
+
+    const examQuestion = await ctx.db
+      .query("examQuestions")
+      .withIndex("by_exam", (q) => q.eq("examId", args.examId))
+      .filter((q) => q.eq(q.field("questionId"), args.questionId))
+      .first();
+
+    if (!examQuestion) {
+      throw new Error("Relação não encontrada");
+    }
+
+    await ctx.db.delete(examQuestion._id);
+  },
+});
+
+// Criar critério de questão
 export const createCriterion = mutation({
   args: {
     questionId: v.id("questions"),
-    criteriaText: v.string(),
-    points: v.number(),
-    isKeyword: v.boolean(),
-    weight: v.number(),
+    regra: v.string(),
+    tipo: v.union(v.literal("PALAVRA CHAVE"), v.literal("SEMANTICO")),
   },
   handler: async (ctx, args) => {
     const professorId = await getProfessorId(ctx);
@@ -147,18 +268,16 @@ export const createCriterion = mutation({
       throw new Error("Questão não encontrada");
     }
 
-    // Verificar se a prova pertence ao professor
-    const exam = await ctx.db.get(question.examId);
-    if (!exam || exam.professorId !== professorId) {
-      throw new Error("Prova não encontrada");
+    // Verificar se o banco de questões pertence ao professor
+    const questionBank = await ctx.db.get(question.questionBankId);
+    if (!questionBank || questionBank.professorId !== professorId) {
+      throw new Error("Questão não encontrada");
     }
 
-    return await ctx.db.insert("evaluationCriteria", {
+    return await ctx.db.insert("questionCriteria", {
       questionId: args.questionId,
-      criteriaText: args.criteriaText,
-      points: args.points,
-      isKeyword: args.isKeyword,
-      weight: args.weight,
+      regra: args.regra,
+      tipo: args.tipo,
     });
   },
 });
@@ -174,14 +293,14 @@ export const listCriteria = query({
       throw new Error("Questão não encontrada");
     }
 
-    // Verificar se a prova pertence ao professor
-    const exam = await ctx.db.get(question.examId);
-    if (!exam || exam.professorId !== professorId) {
-      throw new Error("Prova não encontrada");
+    // Verificar se o banco de questões pertence ao professor
+    const questionBank = await ctx.db.get(question.questionBankId);
+    if (!questionBank || questionBank.professorId !== professorId) {
+      throw new Error("Questão não encontrada");
     }
 
     return await ctx.db
-      .query("evaluationCriteria")
+      .query("questionCriteria")
       .withIndex("by_question", (q) => q.eq("questionId", args.questionId))
       .collect();
   },
@@ -189,7 +308,7 @@ export const listCriteria = query({
 
 // Deletar critério
 export const deleteCriterion = mutation({
-  args: { criterionId: v.id("evaluationCriteria") },
+  args: { criterionId: v.id("questionCriteria") },
   handler: async (ctx, args) => {
     const professorId = await getProfessorId(ctx);
     const criterion = await ctx.db.get(args.criterionId);
@@ -203,12 +322,90 @@ export const deleteCriterion = mutation({
       throw new Error("Questão não encontrada");
     }
 
-    // Verificar se a prova pertence ao professor
-    const exam = await ctx.db.get(question.examId);
-    if (!exam || exam.professorId !== professorId) {
-      throw new Error("Prova não encontrada");
+    // Verificar se o banco de questões pertence ao professor
+    const questionBank = await ctx.db.get(question.questionBankId);
+    if (!questionBank || questionBank.professorId !== professorId) {
+      throw new Error("Critério não encontrado");
     }
 
     await ctx.db.delete(args.criterionId);
+  },
+});
+
+// Criar questão e associar a uma prova (função helper)
+export const createQuestionForExam = mutation({
+  args: {
+    examId: v.id("exams"),
+    questionBankId: v.optional(v.id("questionBanks")),
+    identificador: v.string(),
+    enunciado: v.string(),
+    peso: v.number(),
+    linhas: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const professorId = await getProfessorId(ctx);
+    const exam = await ctx.db.get(args.examId);
+
+    if (!exam) {
+      throw new Error("Prova não encontrada");
+    }
+
+    // Verificar se a turma pertence ao professor
+    const classData = await ctx.db.get(exam.classId);
+    if (!classData || classData.professorId !== professorId) {
+      throw new Error("Prova não encontrada");
+    }
+
+    // Se não foi fornecido questionBankId, criar ou obter um padrão para a prova
+    let questionBankId = args.questionBankId;
+    if (!questionBankId) {
+      // Buscar um questionBank padrão com o nome da prova
+      const defaultQuestionBank = await ctx.db
+        .query("questionBanks")
+        .withIndex("by_professor", (q) => q.eq("professorId", professorId))
+        .filter((q) => q.eq(q.field("titulo"), `Banco: ${exam.titulo}`))
+        .first();
+
+      if (defaultQuestionBank) {
+        questionBankId = defaultQuestionBank._id;
+      } else {
+        // Criar um novo questionBank padrão
+        questionBankId = await ctx.db.insert("questionBanks", {
+          professorId,
+          titulo: `Banco: ${exam.titulo}`,
+        });
+      }
+    } else {
+      // Verificar se o questionBank fornecido pertence ao professor
+      const questionBank = await ctx.db.get(questionBankId);
+      if (!questionBank || questionBank.professorId !== professorId) {
+        throw new Error("Banco de questões não encontrado");
+      }
+    }
+
+    // Criar a questão
+    const questionId = await ctx.db.insert("questions", {
+      questionBankId,
+      identificador: args.identificador,
+      enunciado: args.enunciado,
+      peso: args.peso,
+      linhas: args.linhas,
+    });
+
+    // Associar a questão à prova
+    const existing = await ctx.db
+      .query("examQuestions")
+      .withIndex("by_exam", (q) => q.eq("examId", args.examId))
+      .filter((q) => q.eq(q.field("questionId"), questionId))
+      .first();
+
+    if (!existing) {
+      await ctx.db.insert("examQuestions", {
+        examId: args.examId,
+        questionId,
+      });
+    }
+
+    return questionId;
   },
 });

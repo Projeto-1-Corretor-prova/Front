@@ -32,7 +32,7 @@ export const createProfile = mutation({
 
     return await ctx.db.insert("professors", {
       userId,
-      name: args.name,
+      nome: args.name,
       email: user.email || "",
       institution: args.institution,
       department: args.department,
@@ -49,10 +49,45 @@ export const getCurrentProfile = query({
       return null;
     }
 
-    return await ctx.db
+    const profile = await ctx.db
       .query("professors")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
+
+    // Retornar com nome migrado se necessário (a migração será feita via mutation quando necessário)
+    if (profile && (profile as any).name && !profile.nome) {
+      return {
+        ...profile,
+        nome: (profile as any).name,
+      };
+    }
+
+    return profile;
+  },
+});
+
+// Migrar perfil antigo (chamado automaticamente quando necessário)
+export const migrateProfile = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Usuário não autenticado");
+    }
+
+    const profile = await ctx.db
+      .query("professors")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (profile && (profile as any).name && !profile.nome) {
+      await ctx.db.patch(profile._id, {
+        nome: (profile as any).name,
+      });
+      return { migrated: true };
+    }
+
+    return { migrated: false };
   },
 });
 
@@ -79,7 +114,7 @@ export const updateProfile = mutation({
     }
 
     await ctx.db.patch(profile._id, {
-      name: args.name,
+      nome: args.name,
       institution: args.institution,
       department: args.department,
     });

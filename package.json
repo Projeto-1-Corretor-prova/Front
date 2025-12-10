@@ -13,7 +13,6 @@
   "dependencies": {
     "@convex-dev/auth": "^0.0.80",
     "clsx": "^2.1.1",
-    "convex": "^1.24.2",
     "openai": "^6.9.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -28,6 +27,7 @@
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "~10",
+    "convex": "^1.30.0",
     "dotenv": "^16.4.7",
     "eslint": "^9.21.0",
     "eslint-plugin-react-hooks": "^5.1.0",

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { DocumentIcon, UsersIcon, ChartIcon } from "../ui/Icons";
@@ -12,14 +13,19 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ onShowLogin }: LandingPageProps) {
+  const navigate = useNavigate();
   const [showSignIn, setShowSignIn] = useState(false);
   
   const handleLoginClick = () => {
     if (onShowLogin) {
       onShowLogin();
     } else {
-      setShowSignIn(true);
+      navigate("/login");
     }
+  };
+
+  const handleRegisterClick = () => {
+    navigate("/register");
   };
 
   return (
@@ -54,9 +60,9 @@ export function LandingPage({ onShowLogin }: LandingPageProps) {
             <div className="flex gap-4 mb-12">
             <Button 
               className="px-8 py-4 text-lg flex items-center gap-2"
-              onClick={handleLoginClick}
+              onClick={handleRegisterClick}
             >
-              Começar Agora
+              Criar Conta Grátis
               <ArrowRightIcon />
             </Button>
             <Button 
@@ -64,7 +70,7 @@ export function LandingPage({ onShowLogin }: LandingPageProps) {
               className="px-8 py-4 text-lg"
               onClick={handleLoginClick}
             >
-              Ver Demo
+              Fazer Login
             </Button>
             </div>
 
@@ -243,7 +249,7 @@ export function LandingPage({ onShowLogin }: LandingPageProps) {
                     <span className="text-gray-600">Relatórios básicos</span>
                   </li>
                 </ul>
-                <Button variant="outline" className="w-full" onClick={() => setShowSignIn(true)}>
+                <Button variant="outline" className="w-full" onClick={handleRegisterClick}>
                   Começar Agora
                 </Button>
               </Card>
@@ -300,7 +306,7 @@ export function LandingPage({ onShowLogin }: LandingPageProps) {
                     <span className="text-gray-600">Backup automático</span>
                   </li>
                 </ul>
-                <Button className="w-full" onClick={handleLoginClick}>
+                <Button className="w-full" onClick={handleRegisterClick}>
                   Começar Agora
                 </Button>
               </Card>
@@ -447,7 +453,7 @@ export function LandingPage({ onShowLogin }: LandingPageProps) {
             </p>
             <Button 
               className="bg-white text-blue px-8 py-4 text-lg flex items-center gap-2 mx-auto hover:bg-gray-lighter"
-              onClick={handleLoginClick}
+              onClick={handleRegisterClick}
             >
               Começar Gratuitamente
               <ArrowRightIcon />

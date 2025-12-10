@@ -1,24 +1,12 @@
-import { Card } from "../ui/Card";
-import { Button } from "../ui/Button";
+import { ProfessorsManager } from "../ProfessorsManager";
+import { QuestionBanksManager } from "../QuestionBanksManager";
+import { StudentsManager } from "../StudentsManager";
+import { useState } from "react";
+
+type SettingsTab = "profile" | "questionBanks" | "students";
 
 export function SettingsPage() {
-  const settings = [
-    {
-      id: "1",
-      title: "Perfil do Professor",
-      description: "Editar informações pessoais",
-    },
-    {
-      id: "2",
-      title: "Critérios de Avaliação",
-      description: "Configurar sistema de notas",
-    },
-    {
-      id: "3",
-      title: "Notificações",
-      description: "Gerenciar alertas e lembretes",
-    },
-  ];
+  const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
 
   return (
     <div className="space-y-6">
@@ -27,14 +15,47 @@ export function SettingsPage() {
         <p className="text-gray-600">Gerencie e visualize suas configurações</p>
       </div>
 
-      <div className="space-y-4">
-        {settings.map((setting) => (
-          <Card key={setting.id}>
-            <h3 className="text-xl font-bold text-gray mb-2">{setting.title}</h3>
-            <p className="text-gray-600 mb-4">{setting.description}</p>
-            <Button className="w-full">Configurar &gt;</Button>
-          </Card>
-        ))}
+      <div className="bg-white rounded-lg shadow-sm">
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6">
+            <button
+              onClick={() => setActiveTab("profile")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === "profile"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Perfil
+            </button>
+            <button
+              onClick={() => setActiveTab("questionBanks")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === "questionBanks"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Bancos de Questões
+            </button>
+            <button
+              onClick={() => setActiveTab("students")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === "students"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Alunos
+            </button>
+          </nav>
+        </div>
+
+        <div className="p-6">
+          {activeTab === "profile" && <ProfessorsManager />}
+          {activeTab === "questionBanks" && <QuestionBanksManager />}
+          {activeTab === "students" && <StudentsManager />}
+        </div>
       </div>
     </div>
   );

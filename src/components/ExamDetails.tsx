@@ -11,43 +11,65 @@ interface ExamDetailsProps {
 
 export function ExamDetails({ examId, onBack }: ExamDetailsProps) {
   const [showQuestionForm, setShowQuestionForm] = useState(false);
+  const [showAddExistingForm, setShowAddExistingForm] = useState(false);
   const [showCriteriaForm, setShowCriteriaForm] = useState<Id<"questions"> | null>(null);
+  const [selectedQuestionBank, setSelectedQuestionBank] = useState<Id<"questionBanks"> | "">("");
   const [questionForm, setQuestionForm] = useState({
-    questionNumber: 1,
-    questionText: "",
-    points: 10,
-    expectedAnswer: "",
+    identificador: "",
+    enunciado: "",
+    peso: 10,
+    linhas: 5,
   });
   const [criteriaForm, setCriteriaForm] = useState({
-    criteriaText: "",
-    points: 5,
-    isKeyword: true,
-    weight: 1,
+    regra: "",
+    tipo: "PALAVRA CHAVE" as "PALAVRA CHAVE" | "SEMANTICO",
   });
 
   const examDetails = useQuery(api.exams.getExamWithDetails, { examId });
-  const createQuestion = useMutation(api.questions.createQuestion);
+  const questionBanks = useQuery(api.questionBanks.listQuestionBanks) || [];
+  const questionsFromBank = useQuery(
+    api.questions.listQuestions,
+    selectedQuestionBank ? { questionBankId: selectedQuestionBank as Id<"questionBanks"> } : "skip"
+  ) || [];
+  const createQuestionForExam = useMutation(api.questions.createQuestionForExam);
+  const addQuestionToExam = useMutation(api.questions.addQuestionToExam);
+  const removeQuestionFromExam = useMutation(api.questions.removeQuestionFromExam);
   const createCriterion = useMutation(api.questions.createCriterion);
-  const deleteQuestion = useMutation(api.questions.deleteQuestion);
   const deleteCriterion = useMutation(api.questions.deleteCriterion);
 
   const handleQuestionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
-      await createQuestion({
+      await createQuestionForExam({
         examId,
-        ...questionForm,
-        expectedAnswer: questionForm.expectedAnswer || undefined,
+        identificador: questionForm.identificador,
+        enunciado: questionForm.enunciado,
+        peso: questionForm.peso,
+        linhas: questionForm.linhas,
       });
       toast.success("Questão criada com sucesso!");
       setQuestionForm({
-        questionNumber: (examDetails?.questions.length || 0) + 2,
-        questionText: "",
-        points: 10,
-        expectedAnswer: "",
+        identificador: "",
+        enunciado: "",
+        peso: 10,
+        linhas: 5,
       });
       setShowQuestionForm(false);
+    } catch (error) {
+      toast.error("Erro: " + (error as Error).message);
+    }
+  };
+
+  const handleAddExistingQuestion = async (questionId: Id<"questions">) => {
+    try {
+      await addQuestionToExam({
+        examId,
+        questionId,
+      });
+      toast.success("Questão adicionada à prova com sucesso!");
+      setShowAddExistingForm(false);
+      setSelectedQuestionBank("");
     } catch (error) {
       toast.error("Erro: " + (error as Error).message);
     }
@@ -61,14 +83,13 @@ export function ExamDetails({ examId, onBack }: ExamDetailsProps) {
     try {
       await createCriterion({
         questionId: showCriteriaForm,
-        ...criteriaForm,
+        regra: criteriaForm.regra,
+        tipo: criteriaForm.tipo,
       });
       toast.success("Critério criado com sucesso!");
       setCriteriaForm({
-        criteriaText: "",
-        points: 5,
-        isKeyword: true,
-        weight: 1,
+        regra: "",
+        tipo: "PALAVRA CHAVE",
       });
       setShowCriteriaForm(null);
     } catch (error) {
@@ -76,18 +97,18 @@ export function ExamDetails({ examId, onBack }: ExamDetailsProps) {
     }
   };
 
-  const handleDeleteQuestion = async (questionId: Id<"questions">) => {
-    if (confirm("Tem certeza que deseja deletar esta questão e todos os seus critérios?")) {
+  const handleRemoveQuestion = async (questionId: Id<"questions">) => {
+    if (confirm("Tem certeza que deseja remover esta questão da prova? (A questão permanecerá no banco de questões)")) {
       try {
-        await deleteQuestion({ questionId });
-        toast.success("Questão deletada com sucesso!");
+        await removeQuestionFromExam({ examId, questionId });
+        toast.success("Questão removida da prova com sucesso!");
       } catch (error) {
         toast.error("Erro: " + (error as Error).message);
       }
     }
   };
 
-  const handleDeleteCriterion = async (criterionId: Id<"evaluationCriteria">) => {
+  const handleDeleteCriterion = async (criterionId: Id<"questionCriteria">) => {
     if (confirm("Tem certeza que deseja deletar este critério?")) {
       try {
         await deleteCriterion({ criterionId });
@@ -108,46 +129,42 @@ export function ExamDetails({ examId, onBack }: ExamDetailsProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onBack}
-          className="text-blue-600 hover:text-blue-800 font-medium"
-        >
-          ← Voltar
-        </button>
-        <h2 className="text-xl font-semibold text-gray-900">{examDetails.title}</h2>
-      </div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onBack}
+            className="text-blue-600 hover:text-blue-800 font-medium"
+          >
+            ← Voltar
+          </button>
+          <h2 className="text-xl font-semibold text-gray-900">{examDetails.titulo}</h2>
+        </div>
 
       <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div>
             <p className="text-sm text-gray-600">Pontuação Total</p>
-            <p className="text-lg font-semibold">{examDetails.totalPoints} pontos</p>
+            <p className="text-lg font-semibold">{examDetails.peso} pontos</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Questões</p>
             <p className="text-lg font-semibold">{examDetails.questions.length}</p>
           </div>
-          <div>
-            <p className="text-sm text-gray-600">Status</p>
-            <span className={`inline-block px-2 py-1 text-sm rounded-full ${
-              examDetails.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-            }`}>
-              {examDetails.isActive ? 'Ativa' : 'Inativa'}
-            </span>
-          </div>
         </div>
 
-        {examDetails.description && (
-          <p className="text-gray-600 mb-4">{examDetails.description}</p>
-        )}
-
-        <button
-          onClick={() => setShowQuestionForm(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-        >
-          Adicionar Questão
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowQuestionForm(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Nova Questão
+          </button>
+          <button
+            onClick={() => setShowAddExistingForm(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+          >
+            Adicionar Questão Existente
+          </button>
+        </div>
       </div>
 
       {showQuestionForm && (
@@ -155,29 +172,44 @@ export function ExamDetails({ examId, onBack }: ExamDetailsProps) {
           <h3 className="text-lg font-medium text-gray-900 mb-4">Nova Questão</h3>
           
           <form onSubmit={handleQuestionSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Número da Questão *
+                  Identificador *
                 </label>
                 <input
-                  type="number"
-                  value={questionForm.questionNumber}
-                  onChange={(e) => setQuestionForm({ ...questionForm, questionNumber: parseInt(e.target.value) })}
+                  type="text"
+                  value={questionForm.identificador}
+                  onChange={(e) => setQuestionForm({ ...questionForm, identificador: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="1"
+                  placeholder="Ex: Q1, Questão 1"
                   required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Pontuação *
+                  Peso (Pontos) *
                 </label>
                 <input
                   type="number"
-                  value={questionForm.points}
-                  onChange={(e) => setQuestionForm({ ...questionForm, points: parseInt(e.target.value) })}
+                  value={questionForm.peso}
+                  onChange={(e) => setQuestionForm({ ...questionForm, peso: parseFloat(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="0"
+                  step="0.1"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Linhas *
+                </label>
+                <input
+                  type="number"
+                  value={questionForm.linhas}
+                  onChange={(e) => setQuestionForm({ ...questionForm, linhas: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   min="1"
                   required
@@ -187,27 +219,14 @@ export function ExamDetails({ examId, onBack }: ExamDetailsProps) {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Texto da Questão *
+                Enunciado *
               </label>
               <textarea
-                value={questionForm.questionText}
-                onChange={(e) => setQuestionForm({ ...questionForm, questionText: e.target.value })}
+                value={questionForm.enunciado}
+                onChange={(e) => setQuestionForm({ ...questionForm, enunciado: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 rows={4}
                 required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Resposta Esperada (opcional)
-              </label>
-              <textarea
-                value={questionForm.expectedAnswer}
-                onChange={(e) => setQuestionForm({ ...questionForm, expectedAnswer: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
-                placeholder="Resposta modelo para comparação com IA"
               />
             </div>
 
@@ -230,27 +249,120 @@ export function ExamDetails({ examId, onBack }: ExamDetailsProps) {
         </div>
       )}
 
+      {showAddExistingForm && (
+        <div className="bg-gray-50 rounded-lg p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Adicionar Questão Existente</h3>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Selecionar Banco de Questões *
+              </label>
+              <select
+                value={selectedQuestionBank}
+                onChange={(e) => setSelectedQuestionBank(e.target.value as Id<"questionBanks"> | "")}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecione um banco...</option>
+                {questionBanks.map((bank) => (
+                  <option key={bank._id} value={bank._id}>
+                    {bank.titulo}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedQuestionBank && questionsFromBank.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Questões Disponíveis
+                </label>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {questionsFromBank.map((question) => {
+                    // Verificar se a questão já está na prova
+                    const isAlreadyAdded = examDetails.questions.some(
+                      (eq) => eq._id === question._id
+                    );
+                    
+                    return (
+                      <div
+                        key={question._id}
+                        className={`p-3 border rounded-md ${
+                          isAlreadyAdded
+                            ? "bg-gray-100 border-gray-300 opacity-60"
+                            : "bg-white border-gray-300 hover:border-blue-500"
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">
+                              {question.identificador} ({question.peso} pontos)
+                            </div>
+                            <div className="text-sm text-gray-600 mt-1">
+                              {question.enunciado.substring(0, 100)}
+                              {question.enunciado.length > 100 ? "..." : ""}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Linhas: {question.linhas}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleAddExistingQuestion(question._id)}
+                            disabled={isAlreadyAdded}
+                            className={`ml-4 px-3 py-1 rounded text-sm ${
+                              isAlreadyAdded
+                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                : "bg-green-600 text-white hover:bg-green-700"
+                            }`}
+                          >
+                            {isAlreadyAdded ? "Já adicionada" : "Adicionar"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {selectedQuestionBank && questionsFromBank.length === 0 && (
+              <p className="text-sm text-gray-500 italic">
+                Este banco de questões não possui questões cadastradas.
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddExistingForm(false);
+                  setSelectedQuestionBank("");
+                }}
+                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4">
         {examDetails.questions.map((question) => (
           <div key={question._id} className="bg-white rounded-lg shadow-sm p-6">
             <div className="flex justify-between items-start mb-4">
               <div>
                 <h3 className="text-lg font-medium text-gray-900">
-                  Questão {question.questionNumber} ({question.points} pontos)
+                  {question.identificador} ({question.peso} pontos)
                 </h3>
-                <p className="text-gray-600 mt-2">{question.questionText}</p>
-                {question.expectedAnswer && (
-                  <div className="mt-2 p-3 bg-gray-50 rounded-md">
-                    <p className="text-sm text-gray-600 font-medium">Resposta Esperada:</p>
-                    <p className="text-sm text-gray-700">{question.expectedAnswer}</p>
-                  </div>
-                )}
+                <p className="text-gray-600 mt-2">{question.enunciado}</p>
+                <p className="text-sm text-gray-500 mt-1">Linhas: {question.linhas}</p>
               </div>
               <button
-                onClick={() => handleDeleteQuestion(question._id)}
+                onClick={() => handleRemoveQuestion(question._id)}
                 className="text-red-600 hover:text-red-800 text-sm"
               >
-                Deletar
+                Remover da Prova
               </button>
             </div>
 
@@ -268,62 +380,30 @@ export function ExamDetails({ examId, onBack }: ExamDetailsProps) {
               {showCriteriaForm === question._id && (
                 <div className="bg-gray-50 rounded-lg p-4 mb-4">
                   <form onSubmit={handleCriteriaSubmit} className="space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Pontuação *
-                        </label>
-                        <input
-                          type="number"
-                          value={criteriaForm.points}
-                          onChange={(e) => setCriteriaForm({ ...criteriaForm, points: parseInt(e.target.value) })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          min="1"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Peso (0-1) *
-                        </label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          max="1"
-                          value={criteriaForm.weight}
-                          onChange={(e) => setCriteriaForm({ ...criteriaForm, weight: parseFloat(e.target.value) })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Tipo *
-                        </label>
-                        <select
-                          value={criteriaForm.isKeyword ? "keyword" : "expected"}
-                          onChange={(e) => setCriteriaForm({ ...criteriaForm, isKeyword: e.target.value === "keyword" })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="keyword">Palavra-chave</option>
-                          <option value="expected">Resposta esperada</option>
-                        </select>
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tipo *
+                      </label>
+                      <select
+                        value={criteriaForm.tipo}
+                        onChange={(e) => setCriteriaForm({ ...criteriaForm, tipo: e.target.value as "PALAVRA CHAVE" | "SEMANTICO" })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="PALAVRA CHAVE">Palavra-chave</option>
+                        <option value="SEMANTICO">Semântico</option>
+                      </select>
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {criteriaForm.isKeyword ? "Palavra-chave *" : "Resposta esperada *"}
+                        {criteriaForm.tipo === "PALAVRA CHAVE" ? "Palavra-chave *" : "Regra Semântica *"}
                       </label>
                       <input
                         type="text"
-                        value={criteriaForm.criteriaText}
-                        onChange={(e) => setCriteriaForm({ ...criteriaForm, criteriaText: e.target.value })}
+                        value={criteriaForm.regra}
+                        onChange={(e) => setCriteriaForm({ ...criteriaForm, regra: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder={criteriaForm.isKeyword ? "Ex: algoritmo, estrutura de dados" : "Resposta modelo para comparação"}
+                        placeholder={criteriaForm.tipo === "PALAVRA CHAVE" ? "Ex: algoritmo, estrutura de dados" : "Regra para avaliação semântica"}
                         required
                       />
                     </div>
@@ -352,14 +432,11 @@ export function ExamDetails({ examId, onBack }: ExamDetailsProps) {
                   <div key={criterion._id} className="flex justify-between items-center p-3 bg-gray-50 rounded-md">
                     <div>
                       <span className={`inline-block px-2 py-1 text-xs rounded-full mr-2 ${
-                        criterion.isKeyword ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                        criterion.tipo === "PALAVRA CHAVE" ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
                       }`}>
-                        {criterion.isKeyword ? 'Palavra-chave' : 'Resposta esperada'}
+                        {criterion.tipo === "PALAVRA CHAVE" ? 'Palavra-chave' : 'Semântico'}
                       </span>
-                      <span className="text-sm text-gray-700">{criterion.criteriaText}</span>
-                      <span className="text-sm text-gray-500 ml-2">
-                        ({criterion.points} pts, peso: {criterion.weight})
-                      </span>
+                      <span className="text-sm text-gray-700">{criterion.regra}</span>
                     </div>
                     <button
                       onClick={() => handleDeleteCriterion(criterion._id)}

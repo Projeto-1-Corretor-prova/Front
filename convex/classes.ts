@@ -23,22 +23,14 @@ async function getProfessorId(ctx: any) {
 // Criar turma
 export const createClass = mutation({
   args: {
-    name: v.string(),
-    code: v.string(),
-    semester: v.string(),
-    year: v.number(),
-    description: v.optional(v.string()),
+    titulo: v.string(),
   },
   handler: async (ctx, args) => {
     const professorId = await getProfessorId(ctx);
 
     return await ctx.db.insert("classes", {
       professorId,
-      name: args.name,
-      code: args.code,
-      semester: args.semester,
-      year: args.year,
-      description: args.description,
+      titulo: args.titulo,
     });
   },
 });
@@ -75,11 +67,7 @@ export const getClass = query({
 export const updateClass = mutation({
   args: {
     classId: v.id("classes"),
-    name: v.string(),
-    code: v.string(),
-    semester: v.string(),
-    year: v.number(),
-    description: v.optional(v.string()),
+    titulo: v.string(),
   },
   handler: async (ctx, args) => {
     const professorId = await getProfessorId(ctx);
@@ -90,11 +78,7 @@ export const updateClass = mutation({
     }
 
     await ctx.db.patch(args.classId, {
-      name: args.name,
-      code: args.code,
-      semester: args.semester,
-      year: args.year,
-      description: args.description,
+      titulo: args.titulo,
     });
   },
 });

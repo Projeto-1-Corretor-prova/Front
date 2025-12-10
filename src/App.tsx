@@ -12,6 +12,7 @@ import { ReportsPage } from "./components/pages/ReportsPage";
 import { SettingsPage } from "./components/pages/SettingsPage";
 import { LandingPage } from "./components/pages/LandingPage";
 import { LoginPage } from "./components/pages/LoginPage";
+import { RegisterPage } from "./components/pages/RegisterPage";
 import { ProfileSetup } from "./components/ProfileSetup";
 
 type Route = "inicio" | "turmas" | "provas" | "correcoes" | "relatorios" | "configuracoes";
@@ -21,6 +22,7 @@ export default function App() {
     <div className="min-h-screen">
       <Routes>
         <Route path="/login" element={<LoginRoute />} />
+        <Route path="/register" element={<RegisterRoute />} />
         <Route path="/*" element={<MainRoutes />} />
       </Routes>
       <Toaster />
@@ -30,6 +32,10 @@ export default function App() {
 
 function LoginRoute() {
   return <LoginPage />;
+}
+
+function RegisterRoute() {
+  return <RegisterPage />;
 }
 
 function MainRoutes() {
@@ -64,7 +70,7 @@ function AppContent() {
   }
 
   const user = {
-    name: professorProfile.name || "Professor",
+    name: professorProfile.nome || (professorProfile as any).name || "Professor",
     email: loggedInUser.email || "professor@escola.com",
   };
 
