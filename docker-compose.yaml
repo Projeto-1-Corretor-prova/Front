@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+
+  backend:
+    container_name: projeto-I-backend
+    image: ghcr.io/projeto-1-corretor-prova/backend:latest
+    env_file: .env
+    ports:
+      - $BACK_END_PORT:$BACK_END_PORT
+    depends_on:
+      - postgres
+    networks:
+      - postgres_network
+
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    restart: always
+    env_file: .env
+    ports:
+      - "$POSTGRES_PORT:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - postgres_network
+
+volumes:
+  postgres_data:
+
+networks:
+  postgres_network:
+    driver: bridge
